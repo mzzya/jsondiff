@@ -3,6 +3,7 @@ package jsondiff
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 )
 
 // DiffInfo .
@@ -33,23 +34,24 @@ func Diff(json1 string, json2 string) ([]DiffInfo, error) {
 			result = append(result, DiffInfo{status: "error", code: "key_not_exists", message: fmt.Sprintf("%s\t%v\t%v", json1Key, json1Val, nil)})
 			continue
 		}
-		switch json1Val.(type) {
-		case int, float64, string:
+		switch value := json1Val.(type) {
+		case int, float64, string: //可以断言到
 			if json1Val != json2Val {
 				result = append(result, DiffInfo{status: "error", code: "val_not_equal", message: fmt.Sprintf("%s\t%v\t%v", json1Key, json1Val, json2Val)})
 			}
 			break
-		case []string, []float64, []int:
-			json1ValAry, ok := json1Val.([]interface{})
-			if !ok {
-				fmt.Println("json1Val.([]interface{})", ok)
+		case map[string]interface{}: //可以断言到
+			fmt.Println("map", value)
+			break
+		case interface{}:
+			rt := reflect.TypeOf(json1Val)
+			switch rt.Kind() {
+			case reflect.Slice:
+				v, _ := json1Val.([]interface{})
+				fmt.Println("Slice", v)
+			default:
+				fmt.Println("interface{}")
 			}
-			fmt.Println(json1ValAry)
-			break
-		case map[string]interface{}:
-			break
-		case []map[string]interface{}:
-			break
 		}
 	}
 
