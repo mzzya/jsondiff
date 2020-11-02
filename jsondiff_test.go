@@ -16,7 +16,7 @@ func TestDiff(t *testing.T) {
 		want    interface{}
 		wantErr bool
 	}{
-		{name: "simple test", args: args{json1: `{"int":1,"string":"string","float":1.1,"array":[1,2,3],"object":{"int":1,"string":"string"},"objectAry":[{"int":1,"string":"string"}]}`, json2: `{"int":12,"string":"string2","float":1.12,"array":[12,22,32],"object":{"int":12,"string":"string2"}}`}, want: nil, wantErr: false},
+		{name: "simple test", args: args{json1: `{"int":1,"string":"string","float":1.1,"array":[1,2,3],"object":{"int":1,"string":"string"},"objectAry":[{"int":1,"string":"string"}]}`, json2: `{"int":12,"string":"string2","float":1.12,"array":[12,22,32],"object":{"int":1,"string":"string2"}}`}, want: nil, wantErr: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
