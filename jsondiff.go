@@ -1,4 +1,4 @@
-package server
+package jsondiff
 
 import (
 	"encoding/json"
