@@ -1,4 +1,4 @@
-package jsondiff
+package server
 
 import (
 	"encoding/json"
@@ -9,9 +9,10 @@ import (
 
 // DiffInfo .
 type DiffInfo struct {
-	status  string
-	code    string
-	message string
+	Status  string
+	Code    string
+	Field   string
+	Message string
 }
 
 // Diff .
@@ -34,63 +35,71 @@ func Diff(json1 string, json2 string, ignoreCase bool) (result []DiffInfo, err e
 	if err != nil {
 		return nil, err
 	}
-	result = diff("", json1Map, json2Map)
+	result = diffMap("", json1Map, json2Map)
 	return result, nil
 }
 
-// diff 递归比较
-func diff(keyPrefix string, json1Map map[string]interface{}, json2Map map[string]interface{}) []DiffInfo {
-	var result = make([]DiffInfo, 0)
+// diffMap 递归比较
+func diffMap(fieldPrefix string, json1Map map[string]interface{}, json2Map map[string]interface{}) (result []DiffInfo) {
+	result = make([]DiffInfo, 0)
 	for json1Key, json1Val := range json1Map {
 		json2Val, ok := json2Map[json1Key]
 		if !ok {
-			result = append(result, DiffInfo{status: "error", code: "key_not_exists", message: fmt.Sprintf("%s.%s\t%v\t%v", keyPrefix, json1Key, json1Val, nil)})
+			result = append(result, DiffInfo{Status: "error", Code: "key_not_exists", Field: fmt.Sprintf("%s.%s", fieldPrefix, json1Key), Message: fmt.Sprintf("%v\t%v", json1Val, nil)})
 			continue
 		}
-		switch value := json1Val.(type) {
-		case int, float64, string: //可以断言到
-			if json1Val != json2Val {
-				result = append(result, DiffInfo{status: "error", code: "val_not_equal", message: fmt.Sprintf("%s.%s\t%v\t%v", keyPrefix, json1Key, json1Val, json2Val)})
-				continue
-			}
-			break
-		case map[string]interface{}: //可以断言到
-			value2, ok := json2Val.(map[string]interface{})
-			if !ok {
-				result = append(result, DiffInfo{status: "error", code: "val_type_not_equal", message: fmt.Sprintf("%s.%s\t%v\t%v", keyPrefix, json1Key, json1Val, json2Val)})
-				continue
-			}
-			childResult := diff(fmt.Sprintf("%s.%s", keyPrefix, json1Key), value, value2)
-			if childResult != nil {
-				result = append(result, childResult...)
-			}
-			break
-		case interface{}:
-			rt := reflect.TypeOf(json1Val)
-			switch rt.Kind() {
-			case reflect.Slice:
-				v1, _ := json1Val.([]interface{})
-				v2, ok := json2Val.([]interface{})
-				if !ok {
-					result = append(result, DiffInfo{status: "error", code: "val_type_not_equal", message: fmt.Sprintf("%s.%s\t%v\t%v", keyPrefix, json1Key, json1Val, json2Val)})
-					continue
-				}
-				if len(v1) != len(v2) {
-					result = append(result, DiffInfo{status: "error", code: "val_ary_len_not_equal", message: fmt.Sprintf("%s.%s\t%v\t%v", keyPrefix, json1Key, json1Val, json2Val)})
-					continue
-				}
-				for v1k, v1v := range v1 {
-					if v1v != v2[v1k] {
-						result = append(result, DiffInfo{status: "error", code: "val_ary_index_val_not_equal", message: fmt.Sprintf("%s.%s[%d]\t%v\t%v", keyPrefix, json1Key, v1k, v1v, v2[v1k])})
-					}
-				}
-				// fmt.Println("Slice", v1)
-			default:
-				fmt.Println("interface{}")
-			}
-		}
+		diffInterfaceResult := diffInterface(fmt.Sprintf("%s.%s", fieldPrefix, json1Key), json1Val, json2Val)
+		result = append(result, diffInterfaceResult...)
 	}
 	return result
+}
+
+// diffInterface 比较对象
+func diffInterface(fieldPrefix string, json1Val interface{}, json2Val interface{}) (result []DiffInfo) {
+	result = make([]DiffInfo, 0)
+	switch value := json1Val.(type) {
+	case int, float64, string: //可以断言到
+		if json1Val != json2Val {
+			result = append(result, DiffInfo{Status: "error", Code: "val_not_equal", Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Val, json2Val)})
+			return
+		}
+		break
+	case map[string]interface{}: //可以断言到
+		value2, ok := json2Val.(map[string]interface{})
+		if !ok {
+			result = append(result, DiffInfo{Status: "error", Code: "val_type_not_equal", Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Val, json2Val)})
+			return
+		}
+		childResult := diffMap(fieldPrefix, value, value2)
+		if childResult != nil {
+			result = append(result, childResult...)
+		}
+		break
+	case interface{}:
+		rt := reflect.TypeOf(json1Val)
+		switch rt.Kind() {
+		case reflect.Slice:
+			v1, _ := json1Val.([]interface{})
+			v2, ok := json2Val.([]interface{})
+			if !ok {
+				result = append(result, DiffInfo{Status: "error", Code: "val_type_not_equal", Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Val, json2Val)})
+				return
+			}
+			if len(v1) != len(v2) {
+				result = append(result, DiffInfo{Status: "error", Code: "val_ary_len_not_equal", Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Val, json2Val)})
+				return
+			}
+			//需要判断此时数组内的元素类型
+			for v1k, v1v := range v1 {
+				diffInterfaceResult := diffInterface(fmt.Sprintf("%s.[%d]", fieldPrefix, v1k), v1v, v2[v1k])
+				result = append(result, diffInterfaceResult...)
+			}
+			// fmt.Println("Slice", v1)
+		default:
+			fmt.Println("interface{}")
+		}
+	}
+	return
 }
 
 // DiffIgnoreCase 比较忽略大小写
