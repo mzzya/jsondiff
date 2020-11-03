@@ -1,11 +1,14 @@
 package jsondiff
 
 import (
-	"encoding/json"
+	"bytes"
 	"fmt"
 	"reflect"
-	"strings"
+
+	jsoniter "github.com/json-iterator/go"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 // DiffInfo .
 type DiffInfo struct {
@@ -13,30 +16,6 @@ type DiffInfo struct {
 	Code    string
 	Field   string
 	Message string
-}
-
-// Diff .
-func Diff(json1 string, json2 string, ignoreCase bool) (result []DiffInfo, err error) {
-	json1Map := make(map[string]interface{})
-	json2Map := make(map[string]interface{})
-
-	result = make([]DiffInfo, 0)
-
-	if ignoreCase {
-		json1 = strings.ToLower(json1)
-		json2 = strings.ToLower(json2)
-	}
-
-	err = json.Unmarshal([]byte(json1), &json1Map)
-	if err != nil {
-		return nil, err
-	}
-	err = json.Unmarshal([]byte(json2), &json2Map)
-	if err != nil {
-		return nil, err
-	}
-	result = diffMap("", json1Map, json2Map)
-	return result, nil
 }
 
 // diffMap 递归比较
@@ -102,7 +81,41 @@ func diffInterface(fieldPrefix string, json1Val interface{}, json2Val interface{
 	return
 }
 
+// Diff .
+func Diff(json1 string, json2 string, ignoreCase bool) (result []DiffInfo, err error) {
+	return DiffBytes([]byte(json1), []byte(json2), ignoreCase)
+}
+
 // DiffIgnoreCase 比较忽略大小写
 func DiffIgnoreCase(json1 string, json2 string) ([]DiffInfo, error) {
 	return Diff(json1, json2, true)
+}
+
+// DiffBytesIgnoreCase 比较忽略大小写
+func DiffBytesIgnoreCase(json1 []byte, json2 []byte) ([]DiffInfo, error) {
+	return DiffBytes(json1, json2, true)
+}
+
+// DiffBytes .
+func DiffBytes(json1 []byte, json2 []byte, ignoreCase bool) (result []DiffInfo, err error) {
+	json1Map := make(map[string]interface{})
+	json2Map := make(map[string]interface{})
+
+	result = make([]DiffInfo, 0)
+
+	if ignoreCase {
+		json1 = bytes.ToLower(json1)
+		json2 = bytes.ToLower(json2)
+	}
+
+	err = json.Unmarshal(json1, &json1Map)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(json2, &json2Map)
+	if err != nil {
+		return nil, err
+	}
+	result = diffMap("", json1Map, json2Map)
+	return result, nil
 }
