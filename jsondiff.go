@@ -4,73 +4,101 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"sync"
 
 	jsoniter "github.com/json-iterator/go"
 )
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
+// Code 错误码类型
+type Code string
+
+// KeyNotExists 字段Key不存在
+var KeyNotExists Code = "KeyNotExists"
+
+// ValueNotEqual Value不同
+var ValueNotEqual Code = "ValueNotEqual"
+
+// ValueTypeNotEqual Value类型不同
+var ValueTypeNotEqual Code = "ValueTypeNotEqual"
+
+// ValueArrayLengthNotEqual Value Arrry长度不同
+var ValueArrayLengthNotEqual Code = "ValueArrayLengthNotEqual"
+
+// Status .
+type Status string
+
+// StatusError 验证错误
+var StatusError Status = "error"
+
 // DiffInfo .
 type DiffInfo struct {
-	Status  string
-	Code    string
+	Status  Status
+	Code    Code
 	Field   string
 	Message string
+}
+
+var mapPool = sync.Pool{
+	New: func() interface{} {
+		return make(map[string]interface{}, 4)
+	},
 }
 
 // diffMap 递归比较
 func diffMap(fieldPrefix string, json1Map map[string]interface{}, json2Map map[string]interface{}) (result []DiffInfo) {
 	result = make([]DiffInfo, 0)
-	for json1Key, json1Val := range json1Map {
-		json2Val, ok := json2Map[json1Key]
+	for json1Key, json1Value := range json1Map {
+		json2Value, ok := json2Map[json1Key]
 		if !ok {
-			result = append(result, DiffInfo{Status: "error", Code: "key_not_exists", Field: fmt.Sprintf("%s.%s", fieldPrefix, json1Key), Message: fmt.Sprintf("%v\t%v", json1Val, nil)})
+			result = append(result, DiffInfo{Status: StatusError, Code: KeyNotExists, Field: fmt.Sprintf("%s.%s", fieldPrefix, json1Key), Message: fmt.Sprintf("%v\t%v", json1Value, nil)})
 			continue
 		}
-		diffInterfaceResult := diffInterface(fmt.Sprintf("%s.%s", fieldPrefix, json1Key), json1Val, json2Val)
+		diffInterfaceResult := diffInterface(fmt.Sprintf("%s.%s", fieldPrefix, json1Key), json1Value, json2Value)
 		result = append(result, diffInterfaceResult...)
 	}
 	return result
 }
 
 // diffInterface 比较对象
-func diffInterface(fieldPrefix string, json1Val interface{}, json2Val interface{}) (result []DiffInfo) {
+func diffInterface(fieldPrefix string, json1Value interface{}, json2Value interface{}) (result []DiffInfo) {
 	result = make([]DiffInfo, 0)
-	switch value := json1Val.(type) {
+	switch json1TypeValue := json1Value.(type) {
 	case int, float64, string: //可以断言到
-		if json1Val != json2Val {
-			result = append(result, DiffInfo{Status: "error", Code: "val_not_equal", Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Val, json2Val)})
+		if json1Value != json2Value {
+			result = append(result, DiffInfo{Status: StatusError, Code: ValueNotEqual, Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Value, json2Value)})
 			return
 		}
 		break
 	case map[string]interface{}: //可以断言到
-		value2, ok := json2Val.(map[string]interface{})
+		json2TypeValue, ok := json2Value.(map[string]interface{})
 		if !ok {
-			result = append(result, DiffInfo{Status: "error", Code: "val_type_not_equal", Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Val, json2Val)})
+			result = append(result, DiffInfo{Status: StatusError, Code: ValueTypeNotEqual, Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Value, json2Value)})
 			return
 		}
-		childResult := diffMap(fieldPrefix, value, value2)
+		childResult := diffMap(fieldPrefix, json1TypeValue, json2TypeValue)
 		if childResult != nil {
 			result = append(result, childResult...)
 		}
 		break
 	case interface{}:
-		rt := reflect.TypeOf(json1Val)
+		rt := reflect.TypeOf(json1Value)
 		switch rt.Kind() {
 		case reflect.Slice:
-			v1, _ := json1Val.([]interface{})
-			v2, ok := json2Val.([]interface{})
+			json1ValueArray, _ := json1Value.([]interface{})
+			json2ValueArray, ok := json2Value.([]interface{})
 			if !ok {
-				result = append(result, DiffInfo{Status: "error", Code: "val_type_not_equal", Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Val, json2Val)})
+				result = append(result, DiffInfo{Status: StatusError, Code: ValueTypeNotEqual, Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Value, json2Value)})
 				return
 			}
-			if len(v1) != len(v2) {
-				result = append(result, DiffInfo{Status: "error", Code: "val_ary_len_not_equal", Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Val, json2Val)})
+			if len(json1ValueArray) != len(json2ValueArray) {
+				result = append(result, DiffInfo{Status: StatusError, Code: ValueArrayLengthNotEqual, Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Value, json2Value)})
 				return
 			}
 			//需要判断此时数组内的元素类型
-			for v1k, v1v := range v1 {
-				diffInterfaceResult := diffInterface(fmt.Sprintf("%s.[%d]", fieldPrefix, v1k), v1v, v2[v1k])
+			for json1ValueArrayIndex, json1ValueArrayItem := range json1ValueArray {
+				diffInterfaceResult := diffInterface(fmt.Sprintf("%s.[%d]", fieldPrefix, json1ValueArrayIndex), json1ValueArrayItem, json2ValueArray[json1ValueArrayIndex])
 				result = append(result, diffInterfaceResult...)
 			}
 			// fmt.Println("Slice", v1)
@@ -98,8 +126,10 @@ func DiffBytesIgnoreCase(json1 []byte, json2 []byte) ([]DiffInfo, error) {
 
 // DiffBytes .
 func DiffBytes(json1 []byte, json2 []byte, ignoreCase bool) (result []DiffInfo, err error) {
-	json1Map := make(map[string]interface{})
-	json2Map := make(map[string]interface{})
+	// json1Map := mapPool.Get().(map[string]interface{})
+	// json2Map := mapPool.Get().(map[string]interface{})
+	json1Map := make(map[string]interface{}, 4)
+	json2Map := make(map[string]interface{}, 4)
 
 	result = make([]DiffInfo, 0)
 
@@ -117,5 +147,7 @@ func DiffBytes(json1 []byte, json2 []byte, ignoreCase bool) (result []DiffInfo, 
 		return nil, err
 	}
 	result = diffMap("", json1Map, json2Map)
+	// mapPool.Put(json1Map)
+	// mapPool.Put(json2Map)
 	return result, nil
 }
