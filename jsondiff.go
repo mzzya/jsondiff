@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 )
 
 // DiffInfo .
@@ -14,11 +15,16 @@ type DiffInfo struct {
 }
 
 // Diff .
-func Diff(json1 string, json2 string) ([]DiffInfo, error) {
+func Diff(json1 string, json2 string, ignoreCase bool) (result []DiffInfo, err error) {
 	json1Map := make(map[string]interface{})
 	json2Map := make(map[string]interface{})
-	var err error
-	var result = make([]DiffInfo, 0)
+
+	result = make([]DiffInfo, 0)
+
+	if ignoreCase {
+		json1 = strings.ToLower(json1)
+		json2 = strings.ToLower(json2)
+	}
 
 	err = json.Unmarshal([]byte(json1), &json1Map)
 	if err != nil {
@@ -29,13 +35,10 @@ func Diff(json1 string, json2 string) ([]DiffInfo, error) {
 		return nil, err
 	}
 	result = diff("", json1Map, json2Map)
-
-	for _, item := range result {
-		fmt.Println(item.status, item.code, item.message)
-	}
-	return nil, nil
+	return result, nil
 }
 
+// diff 递归比较
 func diff(keyPrefix string, json1Map map[string]interface{}, json2Map map[string]interface{}) []DiffInfo {
 	var result = make([]DiffInfo, 0)
 	for json1Key, json1Val := range json1Map {
@@ -81,11 +84,16 @@ func diff(keyPrefix string, json1Map map[string]interface{}, json2Map map[string
 						result = append(result, DiffInfo{status: "error", code: "val_ary_index_val_not_equal", message: fmt.Sprintf("%s.%s[%d]\t%v\t%v", keyPrefix, json1Key, v1k, v1v, v2[v1k])})
 					}
 				}
-				fmt.Println("Slice", v1)
+				// fmt.Println("Slice", v1)
 			default:
 				fmt.Println("interface{}")
 			}
 		}
 	}
 	return result
+}
+
+// DiffIgnoreCase 比较忽略大小写
+func DiffIgnoreCase(json1 string, json2 string) ([]DiffInfo, error) {
+	return Diff(json1, json2, true)
 }
