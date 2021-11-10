@@ -70,7 +70,21 @@ func diffInterface(fieldPrefix string, json1Value interface{}, json2Value interf
 			result = append(result, DiffInfo{Status: StatusError, Code: ValueNotEqual, Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Value, json2Value)})
 			return
 		}
-		break
+		return
+	case bool:
+		// fmt.Println(fieldPrefix, json1Value, json2Value)
+		_, ok := json2Value.(bool)
+		if !ok {
+			result = append(result, DiffInfo{Status: StatusError, Code: ValueTypeNotEqual, Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Value, json2Value)})
+			return
+		}
+		// fmt.Println(fieldPrefix, json1Value, json2Value)
+		if json1Value != json2Value {
+			// fmt.Println(fieldPrefix, json1Value, json2Value)
+			result = append(result, DiffInfo{Status: StatusError, Code: ValueNotEqual, Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Value, json2Value)})
+			return
+		}
+		return
 	case map[string]interface{}: //可以断言到
 		json2TypeValue, ok := json2Value.(map[string]interface{})
 		if !ok {
@@ -81,7 +95,7 @@ func diffInterface(fieldPrefix string, json1Value interface{}, json2Value interf
 		if childResult != nil {
 			result = append(result, childResult...)
 		}
-		break
+		return
 	case interface{}:
 		rt := reflect.TypeOf(json1Value)
 		switch rt.Kind() {
@@ -130,8 +144,6 @@ func DiffBytes(json1 []byte, json2 []byte, ignoreCase bool) (result []DiffInfo, 
 	// json2Map := mapPool.Get().(map[string]interface{})
 	json1Map := make(map[string]interface{}, 4)
 	json2Map := make(map[string]interface{}, 4)
-
-	result = make([]DiffInfo, 0)
 
 	if ignoreCase {
 		json1 = bytes.ToLower(json1)
