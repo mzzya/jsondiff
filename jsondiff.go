@@ -76,7 +76,6 @@ func diffInterface(fieldPrefix string, json1Value interface{}, json2Value interf
 		_, ok := json2Value.(bool)
 		if !ok {
 			result = append(result, DiffInfo{Status: StatusError, Code: ValueTypeNotEqual, Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Value, json2Value)})
-			return
 		}
 		// fmt.Println(fieldPrefix, json1Value, json2Value)
 		if json1Value != json2Value {
