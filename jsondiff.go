@@ -20,6 +20,9 @@ var KeyNotExists Code = "KeyNotExists"
 // ValueNotEqual Value不同
 var ValueNotEqual Code = "ValueNotEqual"
 
+// BoolValueFalseOrNull bool类型值false或null类型不同
+var BoolValueFalseOrNull Code = "BoolValueFalseOrNull"
+
 // ValueTypeNotEqual Value类型不同
 var ValueTypeNotEqual Code = "ValueTypeNotEqual"
 
@@ -79,6 +82,11 @@ func diffInterface(fieldPrefix string, json1Value interface{}, json2Value interf
 		}
 		// fmt.Println(fieldPrefix, json1Value, json2Value)
 		if json1Value != json2Value {
+			//如果源数据为false但新数据为null
+			if !json1TypeValue && json2Value == nil {
+				result = append(result, DiffInfo{Status: StatusError, Code: BoolValueFalseOrNull, Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Value, json2Value)})
+				return
+			}
 			// fmt.Println(fieldPrefix, json1Value, json2Value)
 			result = append(result, DiffInfo{Status: StatusError, Code: ValueNotEqual, Field: fieldPrefix, Message: fmt.Sprintf("%v\t%v", json1Value, json2Value)})
 			return
